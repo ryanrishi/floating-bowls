@@ -68,7 +68,7 @@ export class AudioEngine {
     this.activeVoices++
     playStrike(this.ctx, this.bus, this.noise, {
       f0: config.audio.pitchK / bowl.r,
-      amp: strength ** 0.7 * 0.3,
+      amp: strength ** 0.7 * config.audio.strikeGain,
       brightness: 0.5 + 0.45 * strength,
       decay: config.audio.baseDecay * sizeRatio * (0.6 + 0.4 * strength),
       pan: Math.max(-1, Math.min(1, contact.x / config.basin.radius)) * 0.8,
@@ -82,13 +82,18 @@ export class AudioEngine {
 function makeImpulseResponse(ctx) {
   const length = Math.floor(ctx.sampleRate * config.audio.reverbSeconds)
   const buffer = ctx.createBuffer(2, length, ctx.sampleRate)
+
   for (let channel = 0; channel < 2; channel++) {
     const data = buffer.getChannelData(channel)
     let lowpassed = 0
     for (let i = 0; i < length; i++) {
-      const decay = (1 - i / length) ** 2.6
-      lowpassed += ((Math.random() * 2 - 1) - lowpassed) * 0.42
-      data[i] = lowpassed * decay
+      const t = i / length
+      // A real room swallows treble faster than bass, so the tail darkens as it goes.
+      // Holding the brightness constant leaves a bright shimmer under every strike,
+      // which is most of what makes a reverberant tone sound like a struck bell.
+      const cutoff = 0.06 + 0.44 * (1 - t) ** 1.6
+      lowpassed += ((Math.random() * 2 - 1) - lowpassed) * cutoff
+      data[i] = lowpassed * (1 - t) ** 2.6
     }
   }
   return buffer

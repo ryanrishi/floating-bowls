@@ -5,7 +5,7 @@ import { config } from '../config.js'
 // and shorter-lived than the last. That fall-off is what makes it read as ceramic
 // rather than as an organ.
 export function playStrike(ctx, dest, noiseBuffer, voice, onEnded) {
-  const { partials, partialFalloff } = config.audio
+  const { partials, partialFalloff, damping } = config.audio
   const t = ctx.currentTime
   const nyquist = ctx.sampleRate * 0.45
 
@@ -22,8 +22,12 @@ export function playStrike(ctx, dest, noiseBuffer, voice, onEnded) {
     const peak = voice.amp * partialFalloff ** i * voice.brightness ** i
     if (peak < 1e-4) return
 
-    // Higher modes shed their energy faster, so the tone darkens as it decays.
-    const decay = voice.decay / (1 + i * 0.85)
+    // Damping follows frequency, not mode number. A struck object loses its high modes
+    // roughly in proportion to their pitch, so the top of the spectrum is gone within a
+    // few tens of milliseconds and only the bottom two modes are left ringing. Tying
+    // this to the mode index instead lets a 12 kHz partial sing for a quarter of a
+    // second, which is exactly what makes a struck object sound like metal.
+    const decay = voice.decay / ratio ** damping
     const gain = new GainNode(ctx, { gain: 0 })
     gain.gain.setValueAtTime(0, t)
     gain.gain.linearRampToValueAtTime(peak, t + 0.002)
@@ -40,14 +44,14 @@ export function playStrike(ctx, dest, noiseBuffer, voice, onEnded) {
     }
   })
 
-  // The contact tick: a very short band of noise around the third partial. Without it
-  // a strike sounds struck-by-nothing.
+  // The contact tick. Ceramic-on-ceramic contact is a broad click rather than a pitched
+  // ring, so the band is wide and low-Q -- a narrow one adds its own metallic tone.
   const tick = new AudioBufferSourceNode(ctx, { buffer: noiseBuffer })
   tick.playbackRate.value = 0.7 + Math.random() * 0.6
   const tickFilter = new BiquadFilterNode(ctx, {
     type: 'bandpass',
-    frequency: Math.min(voice.f0 * 3.5, nyquist),
-    Q: 1.4,
+    frequency: Math.min(voice.f0 * 2.4, nyquist),
+    Q: 0.8,
   })
   const tickGain = new GainNode(ctx)
   tickGain.gain.setValueAtTime(voice.amp * 0.5, t)

@@ -52,7 +52,16 @@ export const config = {
     pitchK: 150,
     partials: [1, 2.32, 4.25, 6.63, 9.38, 12.22],
     partialFalloff: 0.62,
-    baseDecay: 2,
+    // Raised from 0.3 to make up the energy lost to the shorter decays, so the change
+    // in timbre is not heard as a change in level.
+    strikeGain: 0.45,
+    // How long the fundamental rings. Porcelain damps far harder than bronze, and these
+    // bowls are sitting in water, which damps them harder still.
+    baseDecay: 0.85,
+    // Decay of each mode is baseDecay / ratio**damping. 1 is constant-Q, the textbook
+    // struck object; higher is a duller, deader material. Below about 0.8 the high modes
+    // hang around and it starts to sound like metal again.
+    damping: 1.15,
     // Measured from the simulation: audible strikes run from 0.013 to about 0.08,
     // so these two bracket the real dynamic range rather than a guessed one.
     minImpulse: 0.012,
